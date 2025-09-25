@@ -141,6 +141,20 @@
 //
 // See full example at the end of the header.
 //
+//
+// Code
+// ----
+//
+// The official git repository of hashmap.h is hosted at:
+//
+//     https://github.com/San7o/hashmap.h
+//
+// This is part of a bigger collection of header-only C99 libraries
+// called "micro-headers", contributions are welcome:
+//
+//     https://github.com/San7o/micro-headers
+//
+
 
 #ifndef _HASHMAP_H_
 #define _HASHMAP_H_
