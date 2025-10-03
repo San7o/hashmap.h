@@ -54,13 +54,12 @@
 //
 //    int prefix_map_init(prefix_map *map, int capacity);
 //        Initialize a [map] with [capacity]
-//        Returns: 0 on success, or a negative number on error.
-//        Note: You should destroy it when you are done. Returns 0 on
-//        success, or a negative number on failure.
+//        Returns: 0 on success, or a negative HASHMAP_ERROR_ on error.
+//        Note: You should destroy it when you are done.
 //
 //     int prefix_map_destroy(prefix_map *map);
 //        Destroy a previously initialized [map]
-//        Returns: 0 on success, or a negative number on failure.
+//        Returns: 0 on success, or a negative HASHMAP_ERROR_ on failure.
 // 
 //     prefix_map* prefix_map_deep_copy(prefix_map *map);
 //        Create a new deep copy of [map]
@@ -80,14 +79,16 @@
 //                           value_type *value);
 //        Insert / Update [value] with [key] of [ley_len] length in
 //        [map]
-//        Returns 0 on success, or a negative number in case of an error.
+//        Returns a positive value on success, which is either 0 if a
+//        new value was added or 1 if an existing value was modified,
+//        or a negative HASHMAP_ERROR_ in case of an error.
 //
 //     int prefix_map_delete(prefix_map *map,
 //                           key_type key,
 //                           unsigned int key_len)
 //
 //        Delete an entry with [key] of [key_len] length in [map]
-//        Returns 0 on success, or a negative number on error.
+//        Returns 0 on success, or a negative HASHMAP_ERROR_ on error.
 //
 //     hashmap_hash_t hashmap_hash_char(char *bytes, unsigned int len);
 //     hashmap_hash_t hashmap_hash_int32(uint32_t a, unsigned int ignored);
@@ -196,6 +197,11 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+#define HASHMAP_OK                0
+#define HASHMAP_ERROR_MAP_NULL   -1
+#define HASHMAP_ERROR_ALLOCATION -2
+#define HASHMAP_ERROR_MAP_UNINITIALIZED -3
+  
 typedef HASHMAP_HASH_T hashmap_hash_t;
   
 #define HASHMAP_DECLARE(prefix,                                         \
@@ -225,7 +231,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
                                                                         \
   static inline void prefix##_map_list_free(prefix##_map_list *list)    \
   {                                                                     \
-    if (list == NULL) return;                                           \
+    if (!list) return;                                                  \
                                                                         \
     prefix##_map_list *next = list->next;                               \
     prefix##_map_list_free(next);                                       \
@@ -238,51 +244,54 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
   static inline prefix##_map_list*                                      \
   prefix##_map_list_deep_copy(prefix##_map_list *list)                  \
   {                                                                     \
-    if (list == NULL) return NULL;                                      \
+    if (!list) return NULL;                                             \
                                                                         \
     prefix##_map_list *new_list = HASHMAP_CALLOC(1, sizeof(prefix##_map_list)); \
+    if (!new_list) return NULL;                                         \
+                                                                        \
     new_list->val = value_deep_copy_fn(&list->val);                     \
     new_list->key_hash = list->key_hash;                                \
     new_list->next = prefix##_map_list_deep_copy(list->next);           \
+                                                                        \
     return new_list;                                                    \
   }                                                                     \
                                                                         \
   static inline int prefix##_map_init(prefix##_map *map, int capacity)  \
   {                                                                     \
-    if (map == NULL) return -1;                                         \
+    if (!map) return HASHMAP_ERROR_MAP_NULL;                            \
                                                                         \
     map->capacity = capacity;                                           \
     map->hash = hash_fn;                                                \
     map->value_type##_deep_copy = value_deep_copy_fn;                   \
     map->_map = HASHMAP_CALLOC(capacity, sizeof(prefix##_map_list*));   \
-    if (map->_map == NULL) return -1;                                   \
-    return 0;                                                           \
+    if (map->_map == NULL) return HASHMAP_ERROR_ALLOCATION;             \
+                                                                        \
+    return HASHMAP_OK;                                                  \
   }                                                                     \
                                                                         \
   static inline int prefix##_map_destroy(prefix##_map *map)             \
   {                                                                     \
-    if (map == NULL) return -1;                                         \
+    if (!map) return HASHMAP_ERROR_MAP_NULL;                            \
+    if (!map->_map) return HASHMAP_OK;                                  \
                                                                         \
-    if (map->_map != NULL)                                              \
+    for (int i = 0; i < map->capacity; ++i)                             \
     {                                                                   \
-      for (int i = 0; i < map->capacity; ++i)                           \
-      {                                                                 \
-        prefix##_map_list_free(map->_map[i]);                           \
-        map->_map[i] = NULL;                                            \
-      }                                                                 \
-      HASHMAP_FREE(map->_map);                                          \
-      map->_map = NULL;                                                 \
+      prefix##_map_list_free(map->_map[i]);                             \
+      map->_map[i] = NULL;                                              \
     }                                                                   \
                                                                         \
-    return 0;                                                           \
+    HASHMAP_FREE(map->_map);                                            \
+    map->_map = NULL;                                                   \
+    return HASHMAP_OK;                                                  \
   }                                                                     \
                                                                         \
   static inline prefix##_map*                                           \
   prefix##_map_deep_copy(prefix##_map *map)                             \
   {                                                                     \
-    if (map == NULL) return NULL;                                       \
+    if (!map) return NULL;                                              \
                                                                         \
     prefix##_map *map_copy = HASHMAP_CALLOC(1, sizeof(prefix##_map));   \
+    if (!map_copy) return NULL;                                         \
                                                                         \
     if (map->capacity == 0) return map_copy;                            \
                                                                         \
@@ -290,6 +299,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     map_copy->hash = map->hash;                                         \
     map_copy->value_type##_deep_copy = map->value_type##_deep_copy;     \
     map_copy->_map = calloc(sizeof(prefix##_map_list*), map->capacity); \
+                                                                        \
     for (int i = 0; i < map->capacity; ++i)                             \
     {                                                                   \
       map_copy->_map[i] = prefix##_map_list_deep_copy(map->_map[i]);    \
@@ -303,16 +313,14 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
                       key_type key,                                     \
                       unsigned int key_len)                             \
   {                                                                     \
-    if (map == NULL) return NULL;                                       \
-    if (map->_map == NULL) return NULL;                                 \
+    if (!map) return NULL;                                              \
+    if (!map->_map) return NULL;                                        \
                                                                         \
     hashmap_hash_t hash = hash_fn(key, key_len) % map->capacity;        \
                                                                         \
     prefix##_map_list *list = map->_map[hash];                          \
-    if (list == NULL) return NULL;                                      \
-                                                                        \
     bool found = false;                                                 \
-    while (list != NULL)                                                \
+    while (list)                                                        \
     {                                                                   \
       if (hash == list->key_hash)                                       \
       {                                                                 \
@@ -333,15 +341,16 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
                       unsigned int key_len,                             \
                       value_type *value)                                \
   {                                                                     \
-    if (map == NULL) return -1;                                         \
-    if (map->_map == NULL) return -2;                                   \
+    if (!map) return HASHMAP_ERROR_MAP_NULL;                            \
+    if (!map->_map) return HASHMAP_ERROR_MAP_UNINITIALIZED;             \
                                                                         \
     hashmap_hash_t hash = hash_fn(key, key_len) % map->capacity;        \
                                                                         \
      prefix##_map_list *list = map->_map[hash];                         \
-     if (list == NULL)                                                  \
+     if (!list)                                                         \
      {                                                                  \
        list = HASHMAP_CALLOC(1, sizeof(prefix##_map_list));             \
+       if (!list) return HASHMAP_ERROR_ALLOCATION;                      \
        list->next = NULL;                                               \
        list->val = value_deep_copy_fn(value);                           \
        list->key_hash = hash;                                           \
@@ -364,7 +373,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
          found = true;                                                  \
          break;                                                         \
        }                                                                \
-     } while (list->next != NULL);                                      \
+     } while (list->next);                                              \
                                                                         \
      if (found)                                                         \
      {                                                                  \
@@ -375,6 +384,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
                                                                         \
      prefix##_map_list* new_list =                                      \
        HASHMAP_CALLOC(1, sizeof(prefix##_map_list));                    \
+     if (!new_list) return HASHMAP_ERROR_ALLOCATION;                    \
      new_list->next = NULL;                                             \
      new_list->val = value_deep_copy_fn(value);                         \
      new_list->key_hash = hash;                                         \
@@ -388,8 +398,8 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
                        key_type key,                                    \
                        unsigned int key_len)                            \
    {                                                                    \
-     if (map == NULL) return -1;                                        \
-     if (map->_map == NULL) return -2;                                  \
+     if (!map) return HASHMAP_ERROR_MAP_NULL;                           \
+     if (!map->_map) return HASHMAP_ERROR_MAP_UNINITIALIZED;            \
                                                                         \
      hashmap_hash_t hash = hash_fn(key, key_len) % map->capacity;       \
                                                                         \
@@ -398,7 +408,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
      {                                                                  \
        map->_map[hash] = list->next;                                    \
        HASHMAP_FREE(list);                                              \
-       return 0;                                                        \
+       return HASHMAP_OK;                                               \
      }                                                                  \
                                                                         \
      bool found = false;                                                \
@@ -411,16 +421,16 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
          found = true;                                                  \
          break;                                                         \
        }                                                                \
-     } while (list != NULL);                                            \
+     } while (list);                                                    \
                                                                         \
      if (found)                                                         \
      {                                                                  \
        prev->next = list->next;                                         \
        HASHMAP_FREE(list);                                              \
-       return 0;                                                        \
+       return HASHMAP_OK;                                               \
      }                                                                  \
                                                                         \
-     return 0;                                                          \
+     return HASHMAP_OK;                                                 \
    }
 
 //
