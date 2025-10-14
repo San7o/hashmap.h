@@ -1,5 +1,5 @@
-hashtable.h
------------
+hashmap.h
+=========
 
 Header-only implementation of an hashmap in C99 for any type.
 

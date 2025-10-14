@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////
 // SPDX-License-Identifier: MIT
 //
-// hashtable.h
-// -----------
+// hashmap.h
+// ===========
 //
 // Header-only implementation of an hashmap in C99 for any type.
 //
@@ -157,8 +157,8 @@
 //
 
 
-#ifndef _HASHMAP_H_
-#define _HASHMAP_H_
+#ifndef HASHMAP
+#define HASHMAP
 
 #define HASHMAP_MAJOR 0
 #define HASHMAP_MINOR 1
@@ -190,6 +190,11 @@ extern "C" {
   #define HASHMAP_FREE free
 #endif
 
+// Config: Prefix for all functions
+#ifndef HASHMAP_DEF
+  #define HASHMAP_DEF static inline
+#endif
+  
 //
 // Macros
 //
@@ -229,7 +234,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     prefix##_map_##value_type##_deep_copy *value_type##_deep_copy;      \
   } prefix##_map;                                                       \
                                                                         \
-  static inline void prefix##_map_list_free(prefix##_map_list *list)    \
+  HASHMAP_DEF void prefix##_map_list_free(prefix##_map_list *list)      \
   {                                                                     \
     if (!list) return;                                                  \
                                                                         \
@@ -241,7 +246,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     return;                                                             \
   }                                                                     \
                                                                         \
-  static inline prefix##_map_list*                                      \
+  HASHMAP_DEF prefix##_map_list*                                        \
   prefix##_map_list_deep_copy(prefix##_map_list *list)                  \
   {                                                                     \
     if (!list) return NULL;                                             \
@@ -256,7 +261,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     return new_list;                                                    \
   }                                                                     \
                                                                         \
-  static inline int prefix##_map_init(prefix##_map *map, int capacity)  \
+  HASHMAP_DEF int prefix##_map_init(prefix##_map *map, int capacity)    \
   {                                                                     \
     if (!map) return HASHMAP_ERROR_MAP_NULL;                            \
                                                                         \
@@ -269,7 +274,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     return HASHMAP_OK;                                                  \
   }                                                                     \
                                                                         \
-  static inline int prefix##_map_destroy(prefix##_map *map)             \
+  HASHMAP_DEF int prefix##_map_destroy(prefix##_map *map)               \
   {                                                                     \
     if (!map) return HASHMAP_ERROR_MAP_NULL;                            \
     if (!map->_map) return HASHMAP_OK;                                  \
@@ -285,7 +290,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     return HASHMAP_OK;                                                  \
   }                                                                     \
                                                                         \
-  static inline prefix##_map*                                           \
+  HASHMAP_DEF prefix##_map*                                             \
   prefix##_map_deep_copy(prefix##_map *map)                             \
   {                                                                     \
     if (!map) return NULL;                                              \
@@ -308,7 +313,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     return map_copy;                                                    \
   }                                                                     \
                                                                         \
-  static inline value_type*                                             \
+  HASHMAP_DEF value_type*                                               \
   prefix##_map_lookup(prefix##_map *map,                                \
                       key_type key,                                     \
                       unsigned int key_len)                             \
@@ -335,7 +340,7 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
     return NULL;                                                        \
   }                                                                     \
                                                                         \
-  static inline int                                                     \
+  HASHMAP_DEF int                                                       \
   prefix##_map_update(prefix##_map *map,                                \
                       key_type key,                                     \
                       unsigned int key_len,                             \
@@ -391,47 +396,47 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
      list->next = new_list;                                             \
                                                                         \
      return 0;                                                          \
-   }                                                                    \
+  }                                                                     \
                                                                         \
-   static inline int                                                    \
-   prefix##_map_delete(prefix##_map *map,                               \
+  HASHMAP_DEF int                                                       \
+  prefix##_map_delete(prefix##_map *map,                                \
                        key_type key,                                    \
                        unsigned int key_len)                            \
-   {                                                                    \
-     if (!map) return HASHMAP_ERROR_MAP_NULL;                           \
-     if (!map->_map) return HASHMAP_ERROR_MAP_UNINITIALIZED;            \
+  {                                                                     \
+    if (!map) return HASHMAP_ERROR_MAP_NULL;                            \
+    if (!map->_map) return HASHMAP_ERROR_MAP_UNINITIALIZED;             \
                                                                         \
-     hashmap_hash_t hash = hash_fn(key, key_len) % map->capacity;       \
+    hashmap_hash_t hash = hash_fn(key, key_len) % map->capacity;        \
                                                                         \
-     prefix##_map_list *list = map->_map[hash];                         \
-     if (list->key_hash == hash)                                        \
-     {                                                                  \
-       map->_map[hash] = list->next;                                    \
-       HASHMAP_FREE(list);                                              \
-       return HASHMAP_OK;                                               \
-     }                                                                  \
+    prefix##_map_list *list = map->_map[hash];                          \
+    if (list->key_hash == hash)                                         \
+    {                                                                   \
+      map->_map[hash] = list->next;                                     \
+      HASHMAP_FREE(list);                                               \
+      return HASHMAP_OK;                                                \
+    }                                                                   \
                                                                         \
-     bool found = false;                                                \
-     prefix##_map_list *prev;                                           \
-     do {                                                               \
-       prev = list;                                                     \
-       list = list->next;                                               \
-       if (list->key_hash == hash)                                      \
-       {                                                                \
-         found = true;                                                  \
-         break;                                                         \
-       }                                                                \
-     } while (list);                                                    \
+    bool found = false;                                                 \
+    prefix##_map_list *prev;                                            \
+    do {                                                                \
+      prev = list;                                                      \
+      list = list->next;                                                \
+      if (list->key_hash == hash)                                       \
+      {                                                                 \
+        found = true;                                                   \
+        break;                                                          \
+      }                                                                 \
+    } while (list);                                                     \
                                                                         \
-     if (found)                                                         \
-     {                                                                  \
-       prev->next = list->next;                                         \
-       HASHMAP_FREE(list);                                              \
-       return HASHMAP_OK;                                               \
-     }                                                                  \
+    if (found)                                                          \
+    {                                                                   \
+      prev->next = list->next;                                          \
+      HASHMAP_FREE(list);                                               \
+      return HASHMAP_OK;                                                \
+    }                                                                   \
                                                                         \
-     return HASHMAP_OK;                                                 \
-   }
+    return HASHMAP_OK;                                                  \
+  }
 
 //
 // Function Declarations
@@ -442,10 +447,10 @@ typedef HASHMAP_HASH_T hashmap_hash_t;
   
 // char* key hash function
 // Credits to http://www.cse.yorku.ca/~oz/hash.html
-unsigned long hashmap_hash_char(char *bytes, unsigned int len);
+HASHMAP_DEF unsigned long hashmap_hash_char(char *bytes, unsigned int len);
 
 // uint32_t key hash function
-uint32_t hashmap_hash_int32(uint32_t a, unsigned int ignored);
+HASHMAP_DEF uint32_t hashmap_hash_int32(uint32_t a, unsigned int ignored);
   
 //
 // Implementation
@@ -453,7 +458,7 @@ uint32_t hashmap_hash_int32(uint32_t a, unsigned int ignored);
 
 #ifdef HASHMAP_IMPLEMENTATION
 
-unsigned long hashmap_hash_char(char *bytes, unsigned int len)
+HASHMAP_DEF unsigned long hashmap_hash_char(char *bytes, unsigned int len)
 {
   unsigned long hash = 5381;
   for (unsigned int i = 0; i < len; ++i)
@@ -461,7 +466,7 @@ unsigned long hashmap_hash_char(char *bytes, unsigned int len)
   return hash;
 }
 
-uint32_t hashmap_hash_int32(uint32_t a, unsigned int ignored)
+HASHMAP_DEF uint32_t hashmap_hash_int32(uint32_t a, unsigned int ignored)
 {
     a = (a ^ 61) ^ (a >> 16);
     a = a + (a << 3);
@@ -533,4 +538,4 @@ int main(void)
 }
 #endif
 
-#endif // _HASHMAP_H_
+#endif // HASHMAP
